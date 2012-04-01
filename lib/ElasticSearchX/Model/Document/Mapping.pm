@@ -114,8 +114,14 @@ $MAPPING{'ArrayRef[]'} = sub {
 
 $MAPPING{'MooseX::Types::Structured::Dict[]'} = sub {
     my ( $attr, $constraint ) = @_;
-    my %constraints = @{ $constraint->type_constraints };
-    my $value       = {};
+    my @constraints = @{ $constraint->type_constraints };
+
+    # drop slurpy parameters
+    my $has_slurpy_arg = @constraints % 2;
+    pop @constraints if $has_slurpy_arg;
+    my %constraints = @constraints;
+
+    my $value = {};
     while ( my ( $k, $v ) = each %constraints ) {
         $value->{$k} = { maptc( $attr, $v ) };
     }
@@ -124,7 +130,7 @@ $MAPPING{'MooseX::Types::Structured::Dict[]'} = sub {
     return (
         %mapping,
         type => $attr->type eq 'nested' ? 'nested' : 'object',
-        dynamic => \( $attr->dynamic ),
+        dynamic => \( $has_slurpy_arg || $attr->dynamic ),
         properties => $value,
         $attr->include_in_root   ? ( include_in_root   => \1 ) : (),
         $attr->include_in_parent ? ( include_in_parent => \1 ) : (),

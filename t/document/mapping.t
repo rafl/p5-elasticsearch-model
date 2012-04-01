@@ -8,8 +8,8 @@ package MyClass;
 use Moose;
 use ElasticSearchX::Model::Document;
 use ElasticSearchX::Model::Document::Types qw(:all);
-use MooseX::Types -declare => [ 'Resources', 'Profile' ];
-use MooseX::Types::Structured qw(Dict Tuple Optional);
+use MooseX::Types -declare => [ 'Resources', 'Profile', 'BugSummary' ];
+use MooseX::Types::Structured qw(Dict Tuple Optional slurpy);
 use MooseX::Types::Moose qw/Int Str ArrayRef HashRef Undef/;
 
 subtype Resources, as Dict [
@@ -20,6 +20,13 @@ subtype Resources, as Dict [
 
 subtype Profile, as ArrayRef [ Dict [ id => Str ] ];
 coerce Profile, from HashRef, via { [$_] };
+
+subtype BugSummary, as Dict[
+    source => Str,
+    active => Int,
+    closed => Int,
+    slurpy HashRef,
+];
 
 has default => ( is => 'ro' );
 has profile =>
@@ -47,6 +54,7 @@ has modules => (
 );
 has extra => ( is => 'ro', source_only => 1 );
 has vater => ( is => 'ro', parent      => 1 );
+has bugs  => ( is => 'ro', isa => ArrayRef[BugSummary] );
 
 package main;
 use Test::More;
@@ -57,7 +65,7 @@ my $meta = MyClass->meta;
 
 is_deeply(
     [ sort map { $_->name } $meta->get_all_properties ],
-    [   qw(abstract date default extra loc module modules pod profile res vater)
+    [   qw(abstract bugs date default extra loc module modules pod profile res vater)
     ]
 );
 
@@ -98,6 +106,24 @@ is_deeply(
         _parent    => { type     => 'vater' },
         dynamic    => \0,
         properties => {
+            bugs => {
+                dynamic    => \1,
+                type       => 'object',
+                properties => {
+                    source => {
+                        index => 'not_analyzed',
+                        store => 'yes',
+                        type  => 'string',
+                    },
+                    (map {
+                        ($_=> {
+                            index => 'not_analyzed',
+                            store => 'yes',
+                            type  => 'integer',
+                        })
+                    } qw(active closed)),
+                },
+            },
             date => {
                 'store' => 'yes',
                 'type'  => 'date'
